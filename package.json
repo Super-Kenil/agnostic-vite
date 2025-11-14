@@ -1,16 +1,23 @@
 {
   "name": "agnostic-vite",
   "version": "0.0.1",
-  "description": "Vite for all backend frameworks",
+  "description": "Vite for almost all backend frameworks",
   "main": "agnostic-vite.js",
+  "homepage": "https://agnostic-vite.superkenil.com",
   "type": "module",
+  "author": {
+    "email": "kenilsudani.blog@gmail.com",
+    "name": "Super-Kenil",
+    "url": "https://agnostic-vite.superkenil.com"
+  },
+  "license": "MIT",
   "scripts": {
     "dev": "npm-run-all --parallel vite preview",
     "vite": "vite",
     "build": "vite build",
     "preview": "nodemon app.js"
   },
-  "private": true,
+  "private": false,
   "devDependencies": {
     "@tailwindcss/vite": "^4.1.6",
     "glob": "^11.0.2",
