@@ -1,34 +1,29 @@
-import {defineConfig} from 'vite';
-import path from 'path';
-import {sync} from 'glob';
-import tailwindcss from '@tailwindcss/vite'
+import {defineConfig} from "vite";
+import path from "path";
+import {sync} from "glob";
+import tailwindcss from "@tailwindcss/vite";
 import {agnosticVite} from "./agnostic-vite.ts";
 
 export default defineConfig((s) => {
     return {
-        root: ".",
-        base: s.mode === "development"
-            ? "/"
-            : "/dist/",
-        esbuild: {},
+        root: s.mode === "development" ? "public" : ".",
         server: {
-            strictPort: true
+            host: "http://localhost:5173",
+            strictPort: true,
         },
-        plugins: [
-            tailwindcss(),
-            agnosticVite({assetsDir: "./public"}),
-        ],
+        plugins: [tailwindcss(), agnosticVite({assetsDir: "./public"})],
         build: {
-            // output dir for production build
-            outDir: "public/dist",
+            outDir: "public/dist", // output dir for production build
             copyPublicDir: false,
-            emptyOutDir: false,
-            manifest: 'manifest.json',
+            emptyOutDir: true,
+            manifest: "manifest.json",
             rollupOptions: {
                 input: [
-                    ...sync('public/js/**/*.js').map((file) => path.resolve(__dirname, file)),
-                ]
+                    ...sync("public/js/**/*.js").map((file) =>
+                        path.resolve(__dirname, file)
+                    ),
+                ],
             },
         },
-    }
-});import path from 'path';
+    };
+});
