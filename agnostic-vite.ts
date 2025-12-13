@@ -20,17 +20,17 @@ const agnosticVite = (args: AgnosticViteArgs): Plugin => {
         const isCSS = entry.endsWith(".css");
         
         if (isJS) {
-             const script = document.createElement("script");
-             script.type = "module";
-             script.src = VITE_HOST + "/" + entry;
+            const script = document.createElement("script");
+            script.type = "module";
+            script.src = VITE_HOST + "/" + entry;
              // Inject @vite/client if strictly needed, usually handled by backend helper, 
              // but good safety to add if missing.
-             document.body.appendChild(script);
+            document.body.appendChild(script);
         } else if (isCSS) {
-             const link = document.createElement("link");
-             link.rel = "stylesheet";
-             link.href = VITE_HOST + "/" + entry;
-             document.head.appendChild(link);
+            const link = document.createElement("link");
+            link.rel = "stylesheet";
+            link.href = VITE_HOST + "/" + entry;
+            document.head.appendChild(link);
         }
     };
     
