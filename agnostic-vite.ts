@@ -1,139 +1,165 @@
-import { Plugin, ResolvedConfig } from "vite";
-import fs from "fs";
-import path from "path";
+import { Plugin, ResolvedConfig } from "vite"
+import fs from "fs"
+import path from "path"
+import * as process from "process"
 
-type AgnosticViteOptions = {
-    assetsDir: string;
-};
+type AgnosticViteArgs = {
+  assetsDir: string
+}
 
-export const agnosticVite = (opts: AgnosticViteOptions): Plugin => {
-    let vite: ResolvedConfig;
-    let runtimeContent = "";
+const agnosticVite = (args: AgnosticViteArgs): Plugin => {
+  let viteConfig: ResolvedConfig
+  let viteRuntimeScript = ""
 
-    return {
-        name: "agnostic-vite",
+  return {
+    name: "agnostic-vite",
 
-        configResolved(cfg) {
-            vite = cfg;
+    configResolved (config: ResolvedConfig) {
+      viteConfig = config
 
-            const isDevHelper = `
- const IS_DEV = ${vite.command === "serve"};
+      const isDevHelper = `
+ const IS_DEV = ${viteConfig.command === "serve"};
 
- const VITE_HOST = ${JSON.stringify(
-                vite.server?.host
-                    ? `http://${vite.server.host}:${vite.server.port}`
-                    : "http://localhost:5173"
-            )};
-            
- const OUT_DIR = "${vite.build.outDir.split("/")[1] || vite.build.outDir}";
- 
- const BASE_ASSETS_DIR = "public"
-`;
+ const VITE_HOST = ${viteConfig.server?.host ? JSON.stringify(`http://${viteConfig.server.host}:${viteConfig.server.port}`) : "http://localhost:5173"};
 
-            const manifestHelper = `
+ const OUT_DIR = "${viteConfig.build.outDir.split("/")[1] || viteConfig.build.outDir}";
+
+ const BASE_ASSETS_DIR = ${JSON.stringify(args.assetsDir) || "public"}
+
+ let _MANIFEST = null;
+`
+
+      const manifestHelper = `
+// Helper to fetch text content of a file
 async function fetchText(file) {
     return await (await fetch(file)).text();
 }
 
+// Loads the manifest file, uses a cached version if available
 async function loadManifest() {
+    if (_MANIFEST) {
+        return _MANIFEST;
+    }
     const url = OUT_DIR + "/" + "manifest.json";
-    return JSON.parse(await fetchText(url));
+    _MANIFEST = JSON.parse(await fetchText(url));
+    return _MANIFEST;
 }
 
 async function getAsset(entry) {
     const manifest = await loadManifest();
     return manifest[BASE_ASSETS_DIR + "/" + entry] || null;
 }
-`;
+`
 
-            const tagHelpers = `
-async function jsTag(entry) {
-    if (IS_DEV) {
-        const script = document.createElement("script");
-        script.type = "module";
-        script.crossOrigin = true;
-        script.src = VITE_HOST + "/" + entry;
-        document.head.appendChild(script);
-        return;
+      const tagHelpers = `
+// Helper to create and append a CSS link tag
+function injectLinkTag(href, isProd = true) {
+    const head = document.head || document.getElementsByTagName('head')[0];
+    if (!head) return;
+
+    const link = document.createElement("link");
+    link.rel = "stylesheet";
+
+    if (isProd) {
+        link.href = OUT_DIR + "/" + href;
+    } else {
+        link.href = VITE_HOST + "/" + href;
     }
 
-    const asset = await getAsset(entry);
-    if (!asset) return;
-
-    const script = document.createElement("script");
-    script.type = "module";
-    script.src = OUT_DIR + "/" + asset.file;
-    document.head.appendChild(script);
-
-    if (asset.css) {
-        asset.css.forEach(cssFile => {
-            const link = document.createElement("link");
-            link.rel = "stylesheet";
-            link.href = OUT_DIR + "/" + cssFile;
-            document.head.appendChild(link);
-        });
-    }
+    head.appendChild(link);
 }
 
-async function cssTag(entry) {
+async function viteAsset(entry) {
+    const headElement = document.head || document.getElementsByTagName('head')[0];
+    const bodyElement = document.body || document.getElementsByTagName('body')[0];
+
+    if (!headElement && !bodyElement) {
+        console.error("Invalid HTML DOM, missing head or body elements.");
+        return;
+    }
+
+    const isJS = entry.endsWith(".js");
+    const isCSS = entry.endsWith(".css");
+
+    if (!isJS && !isCSS) {
+        console.warn('Unsupported asset type for entry:', entry);
+        return;
+    }
+
     if (IS_DEV) {
-        const link = document.createElement("link");
-        link.rel = "stylesheet";
-        link.href = VITE_HOST + "/" + entry;
-        document.head.appendChild(link);
+        if (isJS) {
+            const script = document.createElement("script");
+            script.type = "module";
+            script.crossOrigin = true;
+            script.src = VITE_HOST + "/" + entry;
+            if(bodyElement) bodyElement.appendChild(script);
+        } else if (isCSS) {
+            injectLinkTag(entry, false);
+        }
         return;
     }
 
     const asset = await getAsset(entry);
-    if (!asset) return;
+    if (!asset) {
+        console.warn('Asset not found in manifest:', entry);
+        return;
+    }
 
     if (asset.css) {
         asset.css.forEach(cssFile => {
-            const link = document.createElement("link");
-            link.rel = "stylesheet";
-            link.href = OUT_DIR + "/" + cssFile;
-            document.head.appendChild(link);
+            injectLinkTag(cssFile);
         });
+    } 
+    if (asset.file && asset.file.endsWith(".css")) {
+        injectLinkTag(asset.file);
+    }
+
+    if (isJS) {
+        const script = document.createElement("script");
+        script.type = "module";
+        script.src = OUT_DIR + "/" + asset.file;
+        if(bodyElement) bodyElement.appendChild(script);
     }
 }
 
 if (typeof window !== "undefined") {
-    window.jsTag = jsTag;
-    window.cssTag = cssTag;
+    window.viteAsset = viteAsset;
 }
-`;
+`
 
-            runtimeContent =
-                "// Auto-generated by agnostic-vite plugin\n\n" +
-                isDevHelper +
-                manifestHelper +
-                tagHelpers;
-        },
+      viteRuntimeScript =
+        "// Auto-generated by agnostic-vite plugin\n\n" +
+        isDevHelper +
+        manifestHelper +
+        tagHelpers
+    },
 
-        /**
-         * DEV MODE → write file physically
-         */
-        configureServer(server) {
-            const devFilePath = path.resolve(process.cwd(), "public/dist/agnostic-vite-runtime.js");
+    /**
+     * DEV MODE → write file physically
+     */
+    configureServer (server) {
+      const devFilePath = path.resolve(process.cwd(), `${viteConfig.build.outDir}/agnostic-vite-runtime.js`)
 
-            // Ensure folder exists
-            fs.mkdirSync(path.dirname(devFilePath), { recursive: true });
+      // Ensure folder exists
+      fs.mkdirSync(path.dirname(devFilePath), { recursive: true })
 
-            // Write runtime file
-            fs.writeFileSync(devFilePath, runtimeContent, "utf-8");
+      // Write runtime file
+      fs.writeFileSync(devFilePath, viteRuntimeScript, "utf-8")
 
-            console.log("[agnostic-vite] Wrote dev runtime:", devFilePath);
-        },
+      console.info("[agnostic-vite] Wrote dev runtime:", devFilePath)
+    },
 
-        /**
-         * BUILD MODE → emit as bundle asset
-         */
-        generateBundle() {
-            this.emitFile({
-                type: "asset",
-                fileName: "agnostic-vite-runtime.js",
-                source: runtimeContent,
-            });
-        },
-    };
-};
+    /**
+     * BUILD MODE → emit as bundle asset
+     */
+    generateBundle () {
+      this.emitFile({
+        type: "asset",
+        fileName: "agnostic-vite-runtime.js",
+        source: viteRuntimeScript,
+      })
+    },
+  }
+}
+
+export default agnosticVite
