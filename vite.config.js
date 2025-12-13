@@ -17,7 +17,6 @@ export default defineConfig((s) => {
       outDir: "public/dist", // output dir for production build
       copyPublicDir: false,
       emptyOutDir: true,
-      manifest: "manifest.json",
       rollupOptions: {
         input: [
           ...sync("public/js/**/*.js").map((file) =>
