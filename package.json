@@ -1,6 +1,6 @@
 {
   "name": "agnostic-vite",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Vite for almost all backend frameworks",
   "main": "./dist/index.js",
   "homepage": "https://agnostic-vite.superkenil.com",
@@ -17,7 +17,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/Super-Kenil/agnostic-vite.git"
+    "url": "git+https://github.com/Super-Kenil/agnostic-vite.git"
   },
   "license": "MIT",
   "scripts": {
